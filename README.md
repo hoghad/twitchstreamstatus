@@ -27,7 +27,8 @@ A live Twitch stream status widget for the **Corsair Xeneon Edge** touchscreen d
 
 | Small (840×344) | Medium (1680×344) | Large (1680×688) |
 |---|---|---|
-| _(screenshot)_ | _(screenshot)_ | _(screenshot)_ |
+| <img width="857" height="367" alt="image" src="https://github.com/user-attachments/assets/599f151c-38d3-4fb8-8249-3feac37bf1b6" />
+ | _(screenshot)_ | _(screenshot)_ |
 
 ---
 
