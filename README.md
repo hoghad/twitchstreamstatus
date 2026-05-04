@@ -62,7 +62,7 @@ Large (1680×688)
 
 1. Download or clone this repository
 2. Open **iCUE** and navigate to the Xeneon Edge widget panel
-3. Add a new widget and select the `index.html` file from this project
+3. Add a new widget and select the icue file from this project
 4. In the widget settings panel, fill in:
    - **Twitch Client ID** — from step 1
    - **Twitch Client Secret** — from step 1
