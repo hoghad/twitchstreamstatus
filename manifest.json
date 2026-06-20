@@ -1,0 +1,16 @@
+{
+  "author": "Travis",
+  "id": "com.travis.twitchstatus",
+  "name": "Twitch Stream Status",
+  "description": "Displays live/offline status for any Twitch channel.",
+  "version": "1.0.0",
+  "preview_icon": "resources/icon.svg",
+  "min_framework_version": "1.0.0",
+  "os": [
+    { "platform": "windows" }
+  ],
+  "supported_devices": [
+    { "type": "dashboard_lcd", "features": ["sensor-screen"] }
+  ],
+  "interactive": true
+}

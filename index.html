@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>tr('Twitch Stream Status')</title>
+
+  <link rel="icon" type="image/svg+xml" href="resources/icon.svg" />
+
+  <!-- iCUE user-configurable properties -->
+  <meta name="x-icue-property" content="clientId"
+        data-label="tr('Twitch Client ID')"
+        data-type="textfield"
+        data-default="''" />
+
+  <meta name="x-icue-property" content="clientSecret"
+        data-label="tr('Twitch Client Secret')"
+        data-type="textfield"
+        data-default="''" />
+
+  <meta name="x-icue-property" content="channelName"
+        data-label="tr('Channel Name')"
+        data-type="textfield"
+        data-default="'giantwaffle'" />
+
+  <meta name="x-icue-property" content="refreshInterval"
+        data-label="tr('Refresh Interval (seconds)')"
+        data-type="textfield"
+        data-default="'60'" />
+
+  <meta name="x-icue-property" content="accentColor"
+        data-label="tr('Accent Color')"
+        data-type="color"
+        data-default="'#9146FF'" />
+
+  <meta name="x-icue-property" content="textColor"
+        data-label="tr('Text Color')"
+        data-type="color"
+        data-default="'#FFFFFF'" />
+
+  <meta name="x-icue-property" content="backgroundColor"
+        data-label="tr('Background Color')"
+        data-type="color"
+        data-default="'#0A0A0F'" />
+
+  <script type="application/json" id="x-icue-groups">
+    [
+      {
+        "title": "tr('Twitch API')",
+        "properties": ["clientId", "clientSecret", "channelName", "refreshInterval"]
+      },
+      {
+        "title": "tr('Appearance')",
+        "properties": ["textColor", "accentColor", "backgroundColor"]
+      }
+    ]
+  </script>
+
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+    }
+
+    body {
+      background: #0A0A0F;
+      color: #FFFFFF;
+      display: flex;
+      flex-direction: column;
+      padding: 48px 44px;
+    }
+
+    /* Grid texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .widget {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 48px;
+    }
+
+    .platform-label {
+      font-size: 11px;
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #555870;
+      margin-bottom: 8px;
+    }
+
+    .channel-name {
+      font-size: 64px;
+      font-weight: 800;
+      line-height: 0.9;
+      letter-spacing: -0.02em;
+      text-transform: uppercase;
+      color: #FFFFFF;
+      word-break: break-all;
+    }
+
+    .twitch-logo {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+      margin-top: 4px;
+      opacity: 0.6;
+    }
+
+    /* Status badge */
+    .status-wrap {
+      margin-bottom: 40px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      border-radius: 3px;
+      border: 1px solid #1e2230;
+      background: #0e1018;
+      transition: all 0.5s ease;
+    }
+
+    .status-badge.is-live {
+      border-color: rgba(255, 45, 45, 0.5);
+      background: rgba(255, 45, 45, 0.1);
+    }
+
+    .status-badge.is-loading {
+      border-color: #1e2230;
+      background: #0e1018;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #3a4050;
+      flex-shrink: 0;
+      transition: background 0.5s ease;
+    }
+
+    .dot.live {
+      background: #ff2d2d;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .dot.loading {
+      background: #555870;
+      animation: blink 1s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 45, 45, 0.6); }
+      50%       { box-shadow: 0 0 0 8px rgba(255, 45, 45, 0); }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .status-text {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    /* Info rows */
+    .info-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-bottom: 40px;
+    }
+
+    .info-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 18px 20px;
+      background: #0e1018;
+      border: 1px solid #1e2230;
+    }
+
+    .info-row:first-child { border-radius: 3px 3px 0 0; }
+    .info-row:last-child  { border-radius: 0 0 3px 3px; }
+
+    .info-label {
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #555870;
+    }
+
+    .info-value {
+      font-size: 15px;
+      font-weight: 400;
+      color: #FFFFFF;
+      line-height: 1.35;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .info-value.viewers {
+      font-size: 28px;
+      font-weight: 700;
+      color: #9146FF;
+    }
+
+    /* Uptime */
+    .uptime-row {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      padding: 24px 20px;
+      background: #0e1018;
+      border: 1px solid #1e2230;
+      border-radius: 3px;
+      margin-bottom: 40px;
+    }
+
+    .ring-wrap { flex-shrink: 0; }
+
+    .ring-bg  { fill: none; stroke: #1e2230; stroke-width: 5; }
+    .ring-arc {
+      fill: none;
+      stroke: #ff2d2d;
+      stroke-width: 5;
+      stroke-linecap: round;
+      stroke-dasharray: 219.91;
+      stroke-dashoffset: 219.91;
+      transform: rotate(-90deg);
+      transform-origin: center;
+      transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+                  stroke 0.5s ease;
+    }
+
+    .uptime-info {}
+    .uptime-value {
+      font-size: 44px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .uptime-label {
+      font-size: 10px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #555870;
+    }
+
+    /* Footer */
+    .footer {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .refresh-info {
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #555870;
+    }
+
+    .clock {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #555870;
+    }
+
+    /* Config warning */
+    .config-warn {
+      display: none;
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+      text-align: center;
+    }
+
+    .config-warn svg {
+      width: 48px;
+      height: 48px;
+      opacity: 0.4;
+    }
+
+    .config-warn p {
+      font-size: 13px;
+      color: #555870;
+      letter-spacing: 0.05em;
+      line-height: 1.6;
+    }
+
+    .config-warn strong {
+      color: #FFFFFF;
+    }
+  </style>
+</head>
+<body>
+
+<div class="widget" id="widget">
+
+  <div class="header">
+    <div>
+      <div class="platform-label">Twitch · Live Status</div>
+      <div class="channel-name" id="display-channel">—</div>
+    </div>
+    <svg class="twitch-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path fill="#9146FF" d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/>
+    </svg>
+  </div>
+
+  <!-- Config warning (shown when credentials missing) -->
+  <div class="config-warn" id="config-warn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    </svg>
+    <p>Enter your <strong>Twitch Client ID</strong> and <strong>Client Secret</strong> in the iCUE widget settings panel to get started.</p>
+  </div>
+
+  <!-- Main content -->
+  <div id="main-content">
+    <div class="status-wrap">
+      <div class="status-badge is-loading" id="status-badge">
+        <div class="dot loading" id="dot"></div>
+        <div class="status-text" id="status-text" style="color:#555870;">LOADING</div>
+      </div>
+    </div>
+
+    <div class="info-grid" id="info-grid">
+      <div class="info-row">
+        <div class="info-label">Stream Title</div>
+        <div class="info-value" id="val-title">—</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Category</div>
+        <div class="info-value" id="val-game">—</div>
+      </div>
+      <div class="info-row">
+        <div class="info-label">Viewers</div>
+        <div class="info-value viewers" id="val-viewers">—</div>
+      </div>
+    </div>
+
+    <div class="uptime-row" id="uptime-row">
+      <div class="ring-wrap">
+        <svg width="80" height="80" viewBox="0 0 80 80">
+          <circle class="ring-bg" cx="40" cy="40" r="35"/>
+          <circle class="ring-arc" id="ring-arc" cx="40" cy="40" r="35"/>
+        </svg>
+      </div>
+      <div class="uptime-info">
+        <div class="uptime-value" id="uptime-val">—</div>
+        <div class="uptime-label">Stream uptime</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="refresh-info" id="refresh-info">—</div>
+    <div class="clock" id="clock">00:00</div>
+  </div>
+
+</div>
+
+<script>
+  // ── iCUE event hooks ───────────────────────────────────────────────
+  icueEvents = {
+    onICUEInitialized: onInit,
+    onDataUpdated: onDataUpdated,
+  };
+
+  function onInit() {
+    applyTheme();
+    startWidget();
+  }
+
+  function onDataUpdated() {
+    applyTheme();
+    // Restart polling if channel or credentials changed
+    startWidget();
+  }
+
+  if (typeof iCUE_initialized !== 'undefined' && iCUE_initialized) {
+    onInit();
+  }
+
+  // ── Theme application ──────────────────────────────────────────────
+  function applyTheme() {
+    document.body.style.background = backgroundColor || '#0A0A0F';
+    document.body.style.color      = textColor       || '#FFFFFF';
+    document.getElementById('display-channel').style.color = textColor || '#FFFFFF';
+    document.getElementById('val-viewers').style.color     = accentColor || '#9146FF';
+    document.getElementById('ring-arc').style.stroke       = accentColor || '#9146FF';
+    document.getElementById('dot').style.background        = accentColor || '#9146FF';
+  }
+
+  // ── Widget state ───────────────────────────────────────────────────
+  let refreshTimer    = null;
+  let countdownTimer  = null;
+  let countdown       = 60;
+  let startedAtCache  = null;
+
+  function startWidget() {
+    // Clear any existing timers
+    if (refreshTimer)   clearInterval(refreshTimer);
+    if (countdownTimer) clearInterval(countdownTimer);
+
+    const channel = (channelName || '').trim();
+    const id      = (clientId    || '').trim();
+    const secret  = (clientSecret|| '').trim();
+
+    document.getElementById('display-channel').textContent =
+      channel ? channel.toUpperCase() : '—';
+
+    if (!id || !secret || !channel) {
+      showConfigWarning(true);
+      return;
+    }
+
+    showConfigWarning(false);
+
+    const interval = Math.max(30, parseInt(refreshInterval, 10) || 60);
+    countdown = interval;
+
+    fetchStatus();
+
+    refreshTimer = setInterval(fetchStatus, interval * 1000);
+    countdownTimer = setInterval(() => {
+      countdown--;
+      if (countdown <= 0) countdown = interval;
+      document.getElementById('refresh-info').textContent =
+        'Refreshing in ' + countdown + 's';
+    }, 1000);
+  }
+
+  function showConfigWarning(show) {
+    document.getElementById('config-warn').style.display    = show ? 'flex' : 'none';
+    document.getElementById('main-content').style.display   = show ? 'none' : 'block';
+  }
+
+  // ── Twitch API ─────────────────────────────────────────────────────
+  async function getToken() {
+    const res = await fetch('https://id.twitch.tv/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'client_id=' + encodeURIComponent(clientId.trim()) +
+            '&client_secret=' + encodeURIComponent(clientSecret.trim()) +
+            '&grant_type=client_credentials'
+    });
+    if (!res.ok) throw new Error('Token request failed: ' + res.status);
+    const data = await res.json();
+    return data.access_token;
+  }
+
+  async function fetchStatus() {
+    try {
+      const token = await getToken();
+      const res = await fetch(
+        'https://api.twitch.tv/helix/streams?user_login=' +
+          encodeURIComponent(channelName.trim()),
+        {
+          headers: {
+            'Client-ID': clientId.trim(),
+            'Authorization': 'Bearer ' + token
+          }
+        }
+      );
+      if (!res.ok) throw new Error('Streams request failed: ' + res.status);
+      const data = await res.json();
+      render(data.data && data.data.length > 0 ? data.data[0] : null);
+    } catch (e) {
+      renderError(e.message);
+    }
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────
+  function render(stream) {
+    const badge      = document.getElementById('status-badge');
+    const dot        = document.getElementById('dot');
+    const statusText = document.getElementById('status-text');
+
+    if (stream) {
+      // LIVE
+      badge.className = 'status-badge is-live';
+      dot.className   = 'dot live';
+      dot.style.background = '#ff2d2d';
+      statusText.textContent = 'LIVE';
+      statusText.style.color = '#ff2d2d';
+
+      document.getElementById('val-title').textContent   = stream.title    || '—';
+      document.getElementById('val-game').textContent    = stream.game_name || '—';
+      document.getElementById('val-viewers').textContent = Number(stream.viewer_count).toLocaleString();
+
+      startedAtCache = stream.started_at;
+      updateUptime();
+
+    } else {
+      // OFFLINE
+      badge.className = 'status-badge';
+      dot.className   = 'dot';
+      dot.style.background = '#3a4050';
+      statusText.textContent = 'OFFLINE';
+      statusText.style.color = '#555870';
+
+      document.getElementById('val-title').textContent   = '—';
+      document.getElementById('val-game').textContent    = '—';
+      document.getElementById('val-viewers').textContent = '—';
+      document.getElementById('uptime-val').textContent  = '—';
+      document.getElementById('ring-arc').style.strokeDashoffset = '219.91';
+
+      startedAtCache = null;
+    }
+  }
+
+  function renderError(msg) {
+    const statusText = document.getElementById('status-text');
+    document.getElementById('status-badge').className = 'status-badge';
+    document.getElementById('dot').className = 'dot';
+    document.getElementById('dot').style.background = '#ff8c00';
+    statusText.textContent = 'ERROR';
+    statusText.style.color = '#ff8c00';
+    document.getElementById('val-title').textContent = msg || 'Unknown error';
+    document.getElementById('val-game').textContent  = '—';
+    document.getElementById('val-viewers').textContent = '—';
+  }
+
+  function updateUptime() {
+    if (!startedAtCache) return;
+    const mins    = Math.floor((Date.now() - new Date(startedAtCache)) / 60000);
+    const h       = Math.floor(mins / 60);
+    const m       = mins % 60;
+    const display = h > 0
+      ? h + 'h ' + String(m).padStart(2, '0') + 'm'
+      : m + 'm';
+
+    document.getElementById('uptime-val').textContent = display;
+
+    // Ring fills up over 6 hours (360 mins)
+    const circumference = 219.91;
+    const progress = Math.min(mins / 360, 1);
+    document.getElementById('ring-arc').style.strokeDashoffset =
+      (circumference * (1 - progress)).toFixed(2);
+  }
+
+  // Update uptime every minute
+  setInterval(() => { if (startedAtCache) updateUptime(); }, 60000);
+
+  // ── Clock ──────────────────────────────────────────────────────────
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      String(now.getHours()).padStart(2, '0') + ':' +
+      String(now.getMinutes()).padStart(2, '0');
+  }
+
+  updateClock();
+  setInterval(updateClock, 1000);
+</script>
+
+</body>
+</html>
